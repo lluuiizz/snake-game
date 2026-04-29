@@ -6,6 +6,7 @@
 #include <termios.h>
 #include <time.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define SNAKE_CHAR '#'
 #define INITIAL_SNAKE_LENGTH 5
@@ -13,7 +14,7 @@
 #define SNAKE_SIZE_LIMIT (SIDE_SIZE * SIDE_SIZE) - (4 * SIDE_SIZE - 4)
 #define STDIN 0     // INPUT FILE DESCRIPTOR
 #define TIME_SEC 0
-#define TIME_USEC 265 * 1000    //250
+#define TIME_USEC 500 * 1000    //250
 
 typedef struct snake_t {
     unsigned int pos_x, pos_y;
@@ -33,10 +34,16 @@ fruit_t *fruit = NULL;
 
 char board[SIDE_SIZE][SIDE_SIZE];
 
+const char MOVE_UP = 'w';
+const char MOVE_DOWN = 's';
+const char MOVE_RIGHT = 'd';
+const char MOVE_LEFT = 'a';
+
 void new_cell (char);
 void new_fruit ();
 void initialize_board();
 void update_snake(char, unsigned int *);
+void decide_next_movement(char* curr_direction);
 void update_board_state();
 bool check_snake_body_collision();
 bool check_win();
@@ -68,6 +75,7 @@ int main (void) {
     while(true) {
         system("clear");
         printf("\t\t\t SNAKE GAME\n\t\t\t FRUITS EATEN: %u\n", fruits_eaten_count);
+        decide_next_movement(&snake_move_direction);
         update_snake(snake_move_direction, &fruits_eaten_count);
         update_board_state();
         print_board_on_screen();
@@ -158,6 +166,72 @@ void initialize_board() {
 	}
 }
 
+
+double calculate_distance (int snake_x, int snake_y, int fruit_x, int fruit_y) {
+    double dist = sqrt(pow((fruit_x - snake_x), 2) + pow((fruit_y - snake_y),2 ));
+    return dist;
+}
+
+bool check_next_move_collision(int pos_x, int pos_y) {
+    snake_t *body_cell = snake_head->next_body_cell;
+    while (body_cell != NULL) {
+        if (pos_x == body_cell->pos_x && pos_y == body_cell->pos_y) {
+            return true;
+        }   
+       body_cell = body_cell->next_body_cell; 
+    }
+    return false;
+}
+void decide_next_movement(char* curr_direction) {
+    const char direction[] = {MOVE_UP, MOVE_DOWN, MOVE_LEFT, MOVE_RIGHT};
+    char avoid_direction;
+
+    if (*curr_direction == MOVE_UP)
+        avoid_direction = MOVE_DOWN;
+    else if (*curr_direction == MOVE_DOWN)
+        avoid_direction = MOVE_UP;
+    else if (*curr_direction == MOVE_RIGHT)
+        avoid_direction = MOVE_LEFT;
+    else if (*curr_direction == MOVE_LEFT)
+        avoid_direction = MOVE_RIGHT;
+
+
+    double last_distance = calculate_distance(snake_head->pos_x, snake_head->pos_y, fruit->pos_x, fruit->pos_y);
+    char last_direction = *curr_direction;
+
+    for (size_t i = 0; i < sizeof(direction); i++) {
+        int newer_pos_x = snake_head->pos_x, newer_pos_y = snake_head->pos_y;
+        
+        // Restriction 1: Can't move in the opposite direction
+        if (direction[i] == avoid_direction)
+            continue;
+
+        if (direction[i] == MOVE_UP) 
+            newer_pos_y = (snake_head->pos_y - 1 >= 1)
+            ? snake_head->pos_y - 1 : SIDE_SIZE - 2;
+        else if (direction[i] == MOVE_DOWN)
+          newer_pos_y = (snake_head->pos_y + 1 <= SIDE_SIZE - 2)
+          ? snake_head->pos_y + 1 : 1;
+        else if (direction[i] == MOVE_RIGHT)
+            newer_pos_x = (snake_head->pos_x + 1 < SIDE_SIZE - 2)
+            ? snake_head->pos_x + 1 : 1;
+        else if (direction[i] == MOVE_LEFT)
+           newer_pos_x = (snake_head->pos_x - 1 > 1) 
+          ? snake_head->pos_x - 1 : SIDE_SIZE - 2;           
+
+        if (check_next_move_collision(newer_pos_x, newer_pos_y))
+                continue;
+        double newer_distance = calculate_distance(newer_pos_x, newer_pos_y, fruit->pos_x, fruit->pos_y);
+        printf("Distance : %f\n", newer_distance);
+        if (newer_distance <= last_distance) {
+            last_distance = newer_distance;
+            last_direction = direction[i];
+        }
+    }
+
+    *curr_direction = last_direction;
+
+}
 void update_snake (char snake_move_direction, unsigned int *fruits_eaten_count) {
     snake_t *head_buff = snake_head;
     snake_t *tail_buff = snake_tail;
@@ -201,9 +275,15 @@ void update_snake (char snake_move_direction, unsigned int *fruits_eaten_count) 
 
 void update_board_state() {
     snake_t *head_buff = snake_head;
+    snake_t* tail_buff = snake_tail;
     
     while (snake_head != NULL) {
-        board[snake_head->pos_y][snake_head->pos_x] = SNAKE_CHAR;
+        if (snake_head == head_buff)
+            board[snake_head->pos_y][snake_head->pos_x] = '8';
+        else if (snake_head == tail_buff)
+            board[snake_head->pos_y][snake_head->pos_x] = '0';
+        else
+            board[snake_head->pos_y][snake_head->pos_x] = '#';
         snake_head = snake_head->next_body_cell;   
     }
 
@@ -256,11 +336,7 @@ void keyboard_listener (char *current_direction) {
     } else {
         return;
     }
-    //  Verify inputed key
-    if ((ch == 'w' && *current_direction != 's') || (ch == 's' && *current_direction != 'w')
-    || (ch == 'd' && *current_direction != 'a') || (ch == 'a' && *current_direction != 'd')) {
-        *current_direction = ch;
-    }
+
     
 }
 unsigned int gen_num_in_board() {
