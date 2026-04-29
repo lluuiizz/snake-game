@@ -10,11 +10,11 @@
 
 #define SNAKE_CHAR '#'
 #define INITIAL_SNAKE_LENGTH 5
-#define SIDE_SIZE 30
+#define SIDE_SIZE 30 
 #define SNAKE_SIZE_LIMIT (SIDE_SIZE * SIDE_SIZE) - (4 * SIDE_SIZE - 4)
 #define STDIN 0     // INPUT FILE DESCRIPTOR
 #define TIME_SEC 0
-#define TIME_USEC 500 * 1000    //250
+#define TIME_USEC 250 * 1000    //250
 
 typedef struct snake_t {
     unsigned int pos_x, pos_y;
@@ -43,6 +43,7 @@ void new_cell (char);
 void new_fruit ();
 void initialize_board();
 void update_snake(char, unsigned int *);
+bool check_next_move_collision(int pos_x, int pos_y);
 void decide_next_movement(char* curr_direction);
 void update_board_state();
 bool check_snake_body_collision();
@@ -145,8 +146,11 @@ void new_cell (char snake_move_direction) {
 
 void new_fruit () {
     while (board[fruit->pos_y][fruit->pos_x] != ' ') {
-        fruit->pos_x = gen_num_in_board();
-        fruit->pos_y = gen_num_in_board();
+        do {
+            fruit->pos_x = gen_num_in_board();
+            fruit->pos_y = gen_num_in_board();
+
+        } while (check_next_move_collision(fruit->pos_x, fruit->pos_y) == true);
     }
    
     board[fruit->pos_y][fruit->pos_x] = '*';
@@ -213,16 +217,19 @@ void decide_next_movement(char* curr_direction) {
           newer_pos_y = (snake_head->pos_y + 1 <= SIDE_SIZE - 2)
           ? snake_head->pos_y + 1 : 1;
         else if (direction[i] == MOVE_RIGHT)
-            newer_pos_x = (snake_head->pos_x + 1 < SIDE_SIZE - 2)
+            newer_pos_x = (snake_head->pos_x + 1 <= SIDE_SIZE - 2)
             ? snake_head->pos_x + 1 : 1;
         else if (direction[i] == MOVE_LEFT)
-           newer_pos_x = (snake_head->pos_x - 1 > 1) 
+           newer_pos_x = (snake_head->pos_x - 1 >= 1) 
           ? snake_head->pos_x - 1 : SIDE_SIZE - 2;           
 
+        // Restriction 2: Can't collide with own body
         if (check_next_move_collision(newer_pos_x, newer_pos_y))
                 continue;
         double newer_distance = calculate_distance(newer_pos_x, newer_pos_y, fruit->pos_x, fruit->pos_y);
         printf("Distance : %f\n", newer_distance);
+
+        // Restriction 3: Newer position distance can't be greater than the last
         if (newer_distance <= last_distance) {
             last_distance = newer_distance;
             last_direction = direction[i];
@@ -230,7 +237,6 @@ void decide_next_movement(char* curr_direction) {
     }
 
     *curr_direction = last_direction;
-
 }
 void update_snake (char snake_move_direction, unsigned int *fruits_eaten_count) {
     snake_t *head_buff = snake_head;
